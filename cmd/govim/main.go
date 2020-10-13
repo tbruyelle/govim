@@ -290,6 +290,7 @@ func (g *govimplugin) Init(gg govim.Govim, errCh chan error) error {
 	g.DefineCommand(string(config.CommandExperimentalSignatureHelp), g.vimstate.signatureHelp)
 	g.DefineCommand(string(config.CommandFillStruct), g.vimstate.fillStruct)
 	g.DefineCommand(string(config.CommandGCDetails), g.vimstate.toggleGCDetails)
+	g.DefineCommand(string(config.CommandGoTest), g.vimstate.runGoTest, govim.RangeLine)
 	g.DefineFunction(string(config.FunctionProgressClosed), []string{"id", "selected"}, g.vimstate.progressClosed)
 	g.defineHighlights()
 	if err := g.vimstate.signDefine(); err != nil {
