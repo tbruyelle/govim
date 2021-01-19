@@ -44,6 +44,12 @@ func (v *vimstate) updateQuickfixWithDiagnostics(force bool, wasPrevNotDiagnosti
 	if (!force && !work) || !v.quickfixIsDiagnostics {
 		return nil
 	}
+	var qflist qflistProps
+	v.Parse(v.ChannelExpr(`getqflist({"title":1})`), &qflist)
+	if !force && qflist.Title != "" && qflist.Title != "govim" {
+		// Don't change quickfix populated by something else
+		return nil
+	}
 	diags := *diagsRef
 
 	// must be non-nil
@@ -74,14 +80,14 @@ func (v *vimstate) updateQuickfixWithDiagnostics(force bool, wasPrevNotDiagnosti
 	// references mode. But for now we keep it simple.
 	newIdx := 0
 	if !wasPrevNotDiagnostics && len(v.lastQuickFixDiagnostics) > 0 {
-		var want qflistWant
-		v.Parse(v.ChannelExpr(`getqflist({"idx":0})`), &want)
-		if want.Idx == 0 {
-			// NOTE: this should never happen since idx == 0 only if the qf is empty
-			// and we just tested it isn't.
+		v.Parse(v.ChannelExpr(`getqflist({"idx":0})`), &qflist)
+		if qflist.Idx == 0 {
 			goto NewIndexSet
 		}
-		wantIdx := want.Idx - 1
+		wantIdx := qflist.Idx - 1
+		if len(v.lastQuickFixDiagnostics) <= wantIdx {
+			goto NewIndexSet
+		}
 		currFix := v.lastQuickFixDiagnostics[wantIdx]
 		var fileNextIdx, fileLastIdx, dirFirstIdx int
 		for i, f := range fixes {
@@ -118,15 +124,17 @@ func (v *vimstate) updateQuickfixWithDiagnostics(force bool, wasPrevNotDiagnosti
 NewIndexSet:
 	v.lastQuickFixDiagnostics = fixes
 	v.BatchStart()
+	// Fill quickfix list with diagnostics
 	v.BatchChannelCall("setqflist", fixes, "r")
-	if newIdx > 0 {
-		v.BatchChannelCall("setqflist", []quickfixEntry{}, "r", qflistWant{Idx: newIdx})
-	}
+	// Set quickfix list title and index
+	// (index will be passed only if newIdx!=0 because of the omitempty property)
+	v.BatchChannelCall("setqflist", []quickfixEntry{}, "r", qflistProps{Title: "govim", Idx: newIdx})
 	v.MustBatchEnd()
 
 	return nil
 }
 
-type qflistWant struct {
-	Idx int `json:"idx"`
+type qflistProps struct {
+	Idx   int    `json:"idx,omitempty"`
+	Title string `json:"title,omitempty"`
 }
